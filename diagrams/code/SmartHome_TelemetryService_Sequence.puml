@@ -1,0 +1,44 @@
+@startuml
+title Обработка телеметрии от IoT-устройства
+
+actor "Device" as device
+participant "MQTT Broker" as mqtt
+participant "Telemetry Subscriber" as sub
+participant "Telemetry Processor" as proc
+participant "Telemetry Publisher" as pub
+participant "Event Broker\n(Kafka)" as broker
+database "InfluxDB" as influx
+participant "Automation Service" as auto
+participant "Device Service" as device_service
+
+group Публикация телеметрии
+  device -> mqtt
+  mqtt -> sub : Принимает телеметрию(topic=mqtt.telemetry)
+end
+
+group Приём и валидация
+  sub -> proc : Отправляет в обработку
+  alt Валидация успешна
+    proc -> influx : Записывает данные в БД
+    proc -> proc : Агрегация телеметрии по устройству
+  else Ошибка валидации
+    proc --> broker : Отправляет ошибки в DLQ
+  end
+end
+
+group Публикация результата
+  proc -> pub : Публикация данных в топики внутреннего брокера IoT
+  pub -> broker : Отправляет данные в топики: \niot.telemetry,\niot.device-state
+end
+
+group Доставка телеметрии в сервис автоматизации и правил
+  broker -> auto : Получение телеметрии (iot.telemetry)
+  auto --> broker : Подтверждение приема (ack)
+end
+
+group Доставка состояния в сервис устройств
+  broker -> device_service : Получение состояния устройства (iot.device-state)
+  device_service --> broker : Подтверждение приема (ack)
+end
+
+@enduml

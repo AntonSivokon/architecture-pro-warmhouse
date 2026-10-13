@@ -1,0 +1,251 @@
+asyncapi: 3.0.0
+info:
+  title: API событий умного дома
+  version: 1.0.0
+  description: >
+    Контракты асинхронных событий Kafka для телеметрии, обновлений состояния
+    устройств, команд устройствам и уведомлений. Производители и потребители
+    указаны для каждого канала.
+defaultContentType: application/json
+servers:
+  localKafka:
+    host: localhost:9092
+    protocol: kafka
+    description: Локальный брокер Kafka; используйте адрес брокера, настроенный для окружения.
+channels:
+  telemetry:
+    address: iot.telemetry
+    description: Проверенные измерения телеметрии, отправленные сервисом телеметрии и полученные сервисом автоматизации.
+    messages:
+      telemetryEvent:
+        $ref: "#/components/messages/TelemetryEvent"
+  deviceState:
+    address: iot.device-state
+    description: События о текущем состоянии устройства, отправленные сервисом телеметрии и полученные сервисом устройств.
+    messages:
+      deviceStateEvent:
+        $ref: "#/components/messages/DeviceStateEvent"
+  deviceCommand:
+    address: iot.device-command
+    description: Команды устройствам, отправленные сервисом устройств или сервисом автоматизации и полученные сервисом команд устройств.
+    messages:
+      deviceCommandEvent:
+        $ref: "#/components/messages/DeviceCommandEvent"
+  notification:
+    address: iot.notification
+    description: Запросы на отправку уведомлений, сформированные сервисом автоматизации и полученные сервисом уведомлений.
+    messages:
+      notificationEvent:
+        $ref: "#/components/messages/NotificationEvent"
+operations:
+  publishTelemetry:
+    action: send
+    channel:
+      $ref: "#/channels/telemetry"
+    messages:
+      - $ref: "#/channels/telemetry/messages/telemetryEvent"
+    summary: Опубликовать измерение телеметрии.
+    description: Сервис телеметрии публикует измерения после проверки и сохранения.
+    x-service: Сервис телеметрии
+  consumeTelemetry:
+    action: receive
+    channel:
+      $ref: "#/channels/telemetry"
+    messages:
+      - $ref: "#/channels/telemetry/messages/telemetryEvent"
+    summary: Получить измерения телеметрии.
+    description: Сервис автоматизации получает измерения для проверки правил автоматизации.
+    x-service: Сервис автоматизации
+  publishDeviceState:
+    action: send
+    channel:
+      $ref: "#/channels/deviceState"
+    messages:
+      - $ref: "#/channels/deviceState/messages/deviceStateEvent"
+    summary: Опубликовать обновленное состояние устройства.
+    description: Сервис телеметрии публикует обновления состояния после обработки телеметрии устройства.
+    x-service: Сервис телеметрии
+  consumeDeviceState:
+    action: receive
+    channel:
+      $ref: "#/channels/deviceState"
+    messages:
+      - $ref: "#/channels/deviceState/messages/deviceStateEvent"
+    summary: Получить обновления состояния устройства.
+    description: Сервис устройств применяет событие к записи состояния устройства.
+    x-service: Сервис устройств
+  publishDeviceCommand:
+    action: send
+    channel:
+      $ref: "#/channels/deviceCommand"
+    messages:
+      - $ref: "#/channels/deviceCommand/messages/deviceCommandEvent"
+    summary: Опубликовать команду устройству.
+    description: Сервис устройств публикует команды пользователя, а сервис автоматизации - команды, инициированные правилами.
+    x-service:
+      - Сервис устройств
+      - Сервис автоматизации
+  consumeDeviceCommand:
+    action: receive
+    channel:
+      $ref: "#/channels/deviceCommand"
+    messages:
+      - $ref: "#/channels/deviceCommand/messages/deviceCommandEvent"
+    summary: Получить команды устройствам.
+    description: Сервис команд устройств передает принятые команды IoT-устройствам через MQTT.
+    x-service: Сервис команд устройств
+  publishNotification:
+    action: send
+    channel:
+      $ref: "#/channels/notification"
+    messages:
+      - $ref: "#/channels/notification/messages/notificationEvent"
+    summary: Опубликовать запрос на отправку уведомления.
+    description: Сервис автоматизации отправляет события уведомлений для доставки.
+    x-service: Сервис автоматизации
+  consumeNotification:
+    action: receive
+    channel:
+      $ref: "#/channels/notification"
+    messages:
+      - $ref: "#/channels/notification/messages/notificationEvent"
+    summary: Получить запрос на отправку уведомления.
+    description: Сервис уведомлений создает и доставляет запрошенное уведомление.
+    x-service: Сервис уведомлений
+components:
+  messages:
+    TelemetryEvent:
+      name: TelemetryEvent
+      title: Измерение телеметрии
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/TelemetryEvent"
+      examples:
+        - name: Измерение температуры
+          payload:
+            deviceId: 7350ccf2-3874-41d9-9634-b58d61666929
+            moduleId: 4dfd2e9f-0dbe-48ad-a4f4-bbe3c36f7909
+            metric: temperature
+            unit: °C
+            value: 21.5
+            recordedAt: "2026-10-10T12:30:00Z"
+    DeviceStateEvent:
+      name: DeviceStateEvent
+      title: Обновление состояния устройства
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/DeviceStateEvent"
+      examples:
+        - name: Устройство в сети
+          payload:
+            deviceId: 7350ccf2-3874-41d9-9634-b58d61666929
+            state: ACTIVE
+            payload:
+              temperature: 21.5
+              unit: °C
+            occurredAt: "2026-10-10T12:30:00Z"
+    DeviceCommandEvent:
+      name: DeviceCommandEvent
+      title: Команда устройству
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/DeviceCommandEvent"
+      examples:
+        - name: Установка температуры
+          payload:
+            deviceId: 7350ccf2-3874-41d9-9634-b58d61666929
+            command: set_temperature
+            payload:
+              value: 21.5
+              unit: °C
+            requestedAt: "2026-10-10T12:31:00Z"
+    NotificationEvent:
+      name: NotificationEvent
+      title: Запрос на отправку уведомления
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/NotificationEvent"
+      examples:
+        - name: Уведомление об отсутствии устройства в сети
+          payload:
+            userId: 3f7ab433-955a-4c4e-9c22-d67f16b4def3
+            channel: push
+            payload:
+              title: Устройство не в сети
+              deviceId: 7350ccf2-3874-41d9-9634-b58d61666929
+            occurredAt: "2026-10-10T12:32:00Z"
+  schemas:
+    TelemetryEvent:
+      type: object
+      additionalProperties: false
+      required: [deviceId, metric, unit, value, recordedAt]
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        moduleId:
+          type: string
+          format: uuid
+        metric:
+          type: string
+          maxLength: 64
+        unit:
+          type: string
+          maxLength: 20
+        value:
+          type: number
+        recordedAt:
+          type: string
+          format: date-time
+    DeviceStateEvent:
+      type: object
+      additionalProperties: false
+      required: [deviceId, state, payload, occurredAt]
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum: [ACTIVE, INACTIVE, OFFLINE, ERROR]
+        payload:
+          type: object
+          additionalProperties: true
+        occurredAt:
+          type: string
+          format: date-time
+    DeviceCommandEvent:
+      type: object
+      additionalProperties: false
+      required: [deviceId, command, payload, requestedAt]
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        command:
+          type: string
+          minLength: 1
+          maxLength: 64
+        payload:
+          type: object
+          additionalProperties: true
+        requestedAt:
+          type: string
+          format: date-time
+    NotificationEvent:
+      type: object
+      additionalProperties: false
+      required: [userId, channel, payload, occurredAt]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        channel:
+          type: string
+          enum: [email, push, sms]
+        payload:
+          type: object
+          additionalProperties: true
+        occurredAt:
+          type: string
+          format: date-time

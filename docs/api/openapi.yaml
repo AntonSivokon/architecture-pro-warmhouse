@@ -1,0 +1,579 @@
+openapi: 3.1.0
+info:
+  title: API устройств и телеметрии умного дома
+  version: 1.0.0
+  description: >
+    Синхронный REST API, предоставляемый через API-шлюз. Операции с устройствами
+    обрабатываются сервисом устройств, а запросы телеметрии - сервисом
+    телеметрии.
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/users/{userId}/devices:
+    servers:
+      - url: http://localhost:8082
+        description: Локальный сервис устройств в MVP
+    get:
+      tags: [Device Service]
+      operationId: listUserDevices
+      summary: Получить список устройств пользователя
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+        - name: offset
+          in: query
+          description: Количество устройств, которое нужно пропустить.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          description: Максимальное количество возвращаемых устройств.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Страница со списком устройств и общим количеством результатов.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DevicePage"
+              examples:
+                devicePage:
+                  summary: Страница устройств пользователя
+                  value:
+                    items:
+                      - id: 3b7ab62a-6043-3cc9-ac0d-9b6108c7f742
+                        typeId: 3f71c1f0-1913-3c77-b499-1ab0dcaeaed6
+                        locationId: 22b0be4c-3cb8-41fa-853c-c95bc7fe653b
+                        serialNumber: "42"
+                        name: Термостат в гостиной
+                        status: ACTIVE
+                        modules: []
+                    count: 1
+                    offset: 0
+                    size: 20
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/devices:
+    servers:
+      - url: http://localhost:8082
+        description: Локальный сервис устройств в MVP
+    post:
+      tags: [Device Service]
+      operationId: registerDevice
+      summary: Зарегистрировать устройство
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDeviceRequest"
+            examples:
+              createDeviceRequest:
+                summary: Запрос на регистрацию термостата
+                value:
+                  typeId: 2d6a8328-fb24-448e-9e86-234fd4990c13
+                  locationId: 22b0be4c-3cb8-41fa-853c-c95bc7fe653b
+                  serialNumber: TH-000123
+                  name: Термостат в гостиной
+                  moduleIds:
+                    - 4dfd2e9f-0dbe-48ad-a4f4-bbe3c36f7909
+      responses:
+        "201":
+          description: Устройство зарегистрировано.
+          headers:
+            Location:
+              description: URL созданного устройства.
+              schema:
+                type: string
+                format: uri-reference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+              examples:
+                createdDevice:
+                  summary: Зарегистрированное устройство
+                  value:
+                    id: 3b7ab62a-6043-3cc9-ac0d-9b6108c7f742
+                    typeId: 3f71c1f0-1913-3c77-b499-1ab0dcaeaed6
+                    locationId: 22b0be4c-3cb8-41fa-853c-c95bc7fe653b
+                    serialNumber: "42"
+                    name: Термостат в гостиной
+                    status: INACTIVE
+                    modules: []
+                    state:
+                      deviceId: 3b7ab62a-6043-3cc9-ac0d-9b6108c7f742
+                      state: INACTIVE
+                      payload:
+                        value: 0
+                        unit: °C
+                        location: "22b0be4c-3cb8-41fa-853c-c95bc7fe653b"
+                        legacySensorId: 42
+                      updatedAt: "2026-10-10T12:00:00Z"
+                    createdAt: "2026-10-10T12:00:00Z"
+                    updatedAt: "2026-10-10T12:00:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/devices/{deviceId}:
+    servers:
+      - url: http://localhost:8082
+        description: Локальный сервис устройств в MVP
+    get:
+      tags: [Device Service]
+      operationId: getDevice
+      summary: Получить устройство и его текущее состояние
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+      responses:
+        "200":
+          description: Сведения об устройстве, установленных модулях и текущем состоянии.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+              examples:
+                deviceDetails:
+                  summary: Устройство с текущим состоянием
+                  value:
+                    id: 3b7ab62a-6043-3cc9-ac0d-9b6108c7f742
+                    typeId: 3f71c1f0-1913-3c77-b499-1ab0dcaeaed6
+                    locationId: 22b0be4c-3cb8-41fa-853c-c95bc7fe653b
+                    serialNumber: "42"
+                    name: Термостат в гостиной
+                    status: ACTIVE
+                    modules: []
+                    state:
+                      deviceId: 3b7ab62a-6043-3cc9-ac0d-9b6108c7f742
+                      state: ACTIVE
+                      payload:
+                        value: 21.5
+                        unit: °C
+                        location: "22b0be4c-3cb8-41fa-853c-c95bc7fe653b"
+                        legacySensorId: 42
+                      updatedAt: "2026-10-10T12:30:00Z"
+                    createdAt: "2026-10-10T12:00:00Z"
+                    updatedAt: "2026-10-10T12:30:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/devices/{deviceId}/commands:
+    servers:
+      - url: http://localhost:8082
+        description: Локальный сервис устройств в MVP
+    post:
+      tags: [Device Service]
+      operationId: sendDeviceCommand
+      summary: Отправить команду устройству
+      description: >
+        Сервис публикует принятую команду в топик Kafka
+        `iot.device-command`. Ответ подтверждает, что команда принята к доставке,
+        но не означает, что физическое устройство уже выполнило ее.
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceCommandRequest"
+            examples:
+              setTemperature:
+                summary: Установить температуру 21,5 °C
+                value:
+                  command: set_temperature
+                  payload:
+                    value: 21.5
+                    unit: °C
+      responses:
+        "202":
+          description: Команда принята для асинхронной обработки.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceCommandAccepted"
+              examples:
+                commandAccepted:
+                  summary: Команда принята
+                  value:
+                    deviceId: 3b7ab62a-6043-3cc9-ac0d-9b6108c7f742
+                    command: set_temperature
+                    status: accepted
+                    requestedAt: "2026-10-10T12:31:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/devices/{deviceId}/telemetry:
+    servers:
+      - url: http://localhost:8083
+        description: Локальный сервис телеметрии в MVP
+    get:
+      tags: [Telemetry Service]
+      operationId: getDeviceTelemetry
+      summary: Запросить телеметрию устройства
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - name: from
+          in: query
+          description: Включать измерения, записанные в это время или позднее.
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: Включать измерения, записанные до этого времени.
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          description: Максимальное количество возвращаемых измерений.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+      responses:
+        "200":
+          description: Измерения отсортированы по времени записи, сначала новые.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelemetryPage"
+              examples:
+                telemetryMeasurements:
+                  summary: Последние измерения устройства
+                  value:
+                    items:
+                      - deviceId: 3b7ab62a-6043-3cc9-ac0d-9b6108c7f742
+                        moduleId: 4dfd2e9f-0dbe-48ad-a4f4-bbe3c36f7909
+                        metric: temperature
+                        unit: °C
+                        value: 21.5
+                        recordedAt: "2026-10-10T12:30:00Z"
+                      - deviceId: 3b7ab62a-6043-3cc9-ac0d-9b6108c7f742
+                        moduleId: 4dfd2e9f-0dbe-48ad-a4f4-bbe3c36f7909
+                        metric: temperature
+                        unit: °C
+                        value: 21.3
+                        recordedAt: "2026-10-10T12:25:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: Пользователь, которому принадлежат запрошенные устройства.
+      schema:
+        type: string
+        format: uuid
+    DeviceId:
+      name: deviceId
+      in: path
+      required: true
+      description: Идентификатор устройства.
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Параметры запроса или тело запроса некорректны.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            invalidRequest:
+              summary: Некорректные параметры запроса
+              value:
+                code: invalid_request
+                message: Запрос содержит некорректные параметры или данные.
+    Unauthorized:
+      description: Токен доступа отсутствует или некорректен.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            unauthorized:
+              summary: Требуется действительный токен доступа
+              value:
+                code: unauthorized
+                message: Токен доступа отсутствует или недействителен.
+    Forbidden:
+      description: Аутентифицированному пользователю не разрешено выполнять эту операцию.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            forbidden:
+              summary: Недостаточно прав для выполнения операции
+              value:
+                code: forbidden
+                message: У вас нет прав для выполнения этой операции.
+    NotFound:
+      description: Запрошенное устройство или ресурс не найдены.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            deviceNotFound:
+              summary: Устройство не найдено
+              value:
+                code: device_not_found
+                message: Устройство с указанным идентификатором не найдено.
+    InternalServerError:
+      description: Внутренняя ошибка сервера при обработке запроса.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            internalServerError:
+              summary: Не удалось обработать запрос из-за внутренней ошибки
+              value:
+                code: internal_server_error
+                message: При обработке запроса произошла внутренняя ошибка.
+    ServiceUnavailable:
+      description: Монолит или Kafka временно недоступны.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            dependencyUnavailable:
+              summary: Недоступна зависимая система
+              value:
+                code: monolith_unavailable
+                message: Монолит недоступен.
+  schemas:
+    DevicePage:
+      type: object
+      required: [items, count, offset, size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Device"
+        count:
+          type: integer
+          minimum: 0
+        offset:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+    CreateDeviceRequest:
+      type: object
+      required: [typeId, locationId, serialNumber, name]
+      properties:
+        typeId:
+          type: string
+          format: uuid
+          description: Не сохраняется в текущей модели датчика монолита.
+        locationId:
+          type: string
+          format: uuid
+          description: Передается монолиту как строковое местоположение датчика.
+        serialNumber:
+          type: string
+          maxLength: 100
+          description: Не сохраняется в текущей модели датчика монолита.
+        name:
+          type: string
+          maxLength: 150
+        moduleIds:
+          description: Не сохраняется в текущей модели датчика монолита.
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+    Device:
+      type: object
+      required: [id, typeId, locationId, serialNumber, name, status, modules]
+      properties:
+        id:
+          type: string
+          format: uuid
+        typeId:
+          type: string
+          format: uuid
+          description: UUID, вычисленный из типа датчика монолита.
+        locationId:
+          type: string
+          format: uuid
+        serialNumber:
+          type: string
+          description: Числовой ID датчика в монолите.
+        name:
+          type: string
+        status:
+          $ref: "#/components/schemas/DeviceStatus"
+        modules:
+          type: array
+          description: Пустой список, так как монолит не хранит модули.
+          items:
+            $ref: "#/components/schemas/Module"
+        state:
+          $ref: "#/components/schemas/DeviceState"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Module:
+      type: object
+      required: [id, code, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          maxLength: 64
+        name:
+          type: string
+          maxLength: 150
+        description:
+          type: string
+    DeviceStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE, OFFLINE, ERROR]
+    DeviceState:
+      type: object
+      required: [deviceId, state, payload, updatedAt]
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        state:
+          $ref: "#/components/schemas/DeviceStatus"
+        payload:
+          type: object
+          additionalProperties: true
+        updatedAt:
+          type: string
+          format: date-time
+    DeviceCommandRequest:
+      type: object
+      required: [command]
+      properties:
+        command:
+          type: string
+          minLength: 1
+          maxLength: 64
+        payload:
+          type: object
+          additionalProperties: true
+          default: {}
+    DeviceCommandAccepted:
+      type: object
+      required: [deviceId, command, status, requestedAt]
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        command:
+          type: string
+        status:
+          type: string
+          const: accepted
+        requestedAt:
+          type: string
+          format: date-time
+    TelemetryPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TelemetryRecord"
+    TelemetryRecord:
+      type: object
+      required: [deviceId, metric, unit, value, recordedAt]
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        moduleId:
+          type: string
+          format: uuid
+        metric:
+          type: string
+          maxLength: 64
+        unit:
+          type: string
+          maxLength: 20
+        value:
+          type: number
+        recordedAt:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true

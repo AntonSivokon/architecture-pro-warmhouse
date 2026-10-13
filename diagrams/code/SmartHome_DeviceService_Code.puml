@@ -1,0 +1,132 @@
+@startuml
+!$DEFAULT_WRAP_WIDTH = 700
+!include ../C4_Component.puml
+
+title Диаграмма кода Device Service
+
+skinparam linetype ortho
+skinparam nodesep 100
+skinparam ranksep 100
+
+package "API" {
+  class DeviceController {
+    +getDevicesByUserId(userId: UUID, offset: Integer, size: Integer): DevicePageResponse
+    +getDevice(deviceId: UUID): DeviceResponse
+    +registerDevice(request: CreateDeviceRequest): DeviceResponse
+    +updateDevice(deviceId: UUID, request: UpdateDeviceRequest): DeviceResponse
+    +deleteDevice(deviceId: UUID): void
+    +sendCommand(deviceId: UUID, request: DeviceCommandRequest): void
+  }
+
+  class ModuleController {
+    +registerModule(request: CreateModuleRequest): ModuleResponse
+    +deleteModule(moduleId: UUID): void
+  }
+}
+
+package "Service" {
+  class DeviceService <<application service>> {
+    +getDeviceByUserId(userId: UUID): List<UUID>
+    +getDevice(deviceId: UUID): DeviceResponse
+    +registerDevice(request: CreateDeviceRequest): DeviceResponse
+    +updateDevice(deviceId: UUID, request: UpdateDeviceRequest): DeviceResponse
+    +deleteDevice(deviceId: UUID): void
+    +sendCommand(deviceId: UUID, request: DeviceCommandRequest): void
+  }
+
+  class DeviceStateService <<application service>> {
+    +applyState(event: DeviceStateEvent): void
+  }
+
+  class ModuleService <<application service>> {
+    +registerModule(request: CreateModuleRequest): ModuleResponse
+    +deleteModule(moduleId: UUID): void
+  }
+}
+
+package "Repository" {
+  interface DeviceRepository {
+    +findAllByUserId(userId: UUID, offset: Integer, size: Integer): List<Module>
+    +countByUserId(userId: UUID): Integer
+    +findById(deviceId: UUID): Device
+    +save(device: Device): Device
+    +delete(device: Device): void
+  }
+
+  interface ModuleRepository {
+    +findAllById(deviceId: UUID): List<Module>
+    +save(module: Module): Module
+    +delete(module: Module): void
+  }
+
+  interface DeviceStateRepository {
+    +findByDeviceId(deviceId: UUID)): List<DeviceState>
+    +save(state: DeviceState): DeviceState
+  }
+}
+
+package "Entity" {
+  class Device {
+    +id: UUID
+    +typeId: UUID
+    +locationId: UUID
+    +serialNumber: String
+    +name: String
+    +status: DeviceStatus
+    +createdAt: Instant
+    +updatedAt: Instant
+  }
+
+  class Module {
+    +id: UUID
+    +code: String
+    +name: String
+    +description: String
+    +createdAt: Instant
+    +updatedAt: Instant
+  }
+
+  class DeviceState {
+    +deviceId: UUID
+    +state: DeviceStatus
+    +payload: JSON
+    +createdAt: Instant
+    +updatedAt: Instant
+  }
+}
+
+package "Messaging (Kafka)" {
+  class DeviceStateHandler <<Kafka consumer>> {
+    +handleState(event: DeviceStateEvent): void
+  }
+
+  class DeviceEventPublisher <<Kafka producer>> {
+    +publishCommand(event: DeviceCommandEvent): void
+  }
+
+  class DeviceStateEvent <<event: iot.device-state>> {
+    +deviceId: UUID
+    +state: DeviceStatus
+    +payload: JSON
+    +occurredAt: Instant
+  }
+}
+
+DeviceController --> DeviceService
+ModuleController --> ModuleService
+
+DeviceService --> DeviceRepository
+DeviceService --> ModuleRepository
+DeviceService --> DeviceEventPublisher
+DeviceStateHandler --> DeviceStateService
+DeviceStateService --> DeviceStateRepository
+ModuleService --> ModuleRepository
+
+DeviceRepository ..> Device
+ModuleRepository ..> Module
+DeviceStateRepository ..> DeviceState
+DeviceStateHandler ..> DeviceStateEvent
+Device "1" -left- "0..*" Module
+Device "1" -left- "0..*" DeviceState
+
+@enduml

@@ -1,0 +1,18 @@
+@startuml
+title Диаграмма контекста приложения "Теплый дом"
+
+top to bottom direction
+
+!include ../C4_Context.puml
+
+Person(user, "Пользователь", "Пользователь приложения")
+Person(specialist, "Сотрудник компании 'Теплый дом'", "Специалист, который подключает датчики")
+System(smartHomeApp, "Система управления отоплением", "Приложение для управления отоплением дома")
+
+System_Ext(temperatureServiceApi, "Датчик температуры", "API датчика для интеграции")
+
+Rel(user, smartHomeApp, "Использует")
+Rel(specialist, smartHomeApp, "Подключает датчик")
+Rel(smartHomeApp, temperatureServiceApi, "Получает данные о температуре")
+
+@enduml

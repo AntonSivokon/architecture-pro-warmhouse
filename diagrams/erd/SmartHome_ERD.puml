@@ -1,0 +1,293 @@
+@startuml
+!theme plain
+
+left to right direction
+
+skinparam linetype ortho
+
+title ER-диаграмма IoT-платформы умного дома
+
+package "user_db (User Service)" #FDF6E3 {
+  entity users {
+    * id : UUID <<PK>>
+    --
+    * username : VARCHAR(100) <<UQ>>
+    * first_name : VARCHAR(100)
+    * last_name : VARCHAR(100)
+      middle_name : VARCHAR(100)
+    * email : VARCHAR(255) <<UQ>>
+    * phone : VARCHAR(32) <<UQ>>
+    * mobile_device_id : VARCHAR(32) <<UQ>>
+    * status : VARCHAR(20)
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+}
+
+package "authorization_db (Authorization Service)" #ECEFF1 {
+  entity credentials {
+    * id : UUID <<PK>>
+    --
+    * user_id : UUID <<FK, UQ>>
+    --
+    * login : VARCHAR(255) <<UQ>>
+    * password_hash : VARCHAR(255)
+    * status : VARCHAR(20)
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+
+  entity roles {
+    * id : UUID <<PK>>
+    --
+    * code : VARCHAR(50) <<UQ>>
+    * name : VARCHAR(100)
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+
+  entity permissions {
+    * id : UUID <<PK>>
+    --
+    * code : VARCHAR(100) <<UQ>>
+    * description : VARCHAR(255)
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+
+  entity role_permissions {
+    * role_id : UUID <<PK, FK>>
+    * permission_id : UUID <<PK, FK>>
+    * created_at : TIMESTAMP
+  }
+
+  entity user_roles {
+    * credential_id : UUID <<PK, FK>>
+    * role_id : UUID <<PK, FK>>
+    * created_at : TIMESTAMP
+  }
+
+  entity sessions {
+    * id : UUID <<PK>>
+    --
+    * credential_id : UUID <<FK>>
+    --
+    * refresh_token_hash : VARCHAR(255)
+    * issued_at : TIMESTAMP
+    * expires_at : TIMESTAMP
+    * revoked : BOOLEAN
+  }
+}
+
+package "house_db (House Service)" #E8F5E9 {
+  entity houses {
+    * id : UUID <<PK>>
+    --
+    * name : VARCHAR(150)
+    * address : VARCHAR(255)
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+
+  entity locations {
+    * id : UUID <<PK>>
+    --
+    * house_id : UUID <<FK>>
+    --
+    * name : VARCHAR(100)
+      floor : INT
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+
+  entity user_houses {
+    * id : UUID <<PK>>
+    --
+    * user_id : UUID <<FK>>
+    * house_id : UUID <<FK>>
+    --
+    * created_at : TIMESTAMP
+  }
+}
+
+package "device_db (Device Service)" #E3F2FD {
+  entity device_types {
+    * id : UUID <<PK>>
+    --
+    * code : VARCHAR(64) <<UQ>>
+    * name : VARCHAR(150)
+    * category : VARCHAR(50)
+    * description : TEXT
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+
+  entity modules {
+    * id : UUID <<PK>>
+    --
+    * code : VARCHAR(64) <<UQ>>
+    * name : VARCHAR(150)
+    * description : TEXT
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+
+  entity devices {
+    * id : UUID <<PK>>
+    --
+    * type_id : UUID <<FK>>
+    * location_id : UUID <<FK>>
+    * user_id : UUID <<FK>>
+    --
+    * serial_number : VARCHAR(100) <<UQ>>
+    * name : VARCHAR(150)
+    * status : VARCHAR(20)
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+
+  entity device_modules {
+    * device_id : UUID <<PK, FK>>
+    * module_id : UUID <<PK, FK>>
+    --
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+
+  entity device_states {
+    * device_id : UUID <<PK, FK>>
+    --
+    * state : VARCHAR(20)
+    * payload : JSON
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+}
+
+package "telemetry_db (Telemetry Service)" #FFC966 {
+  entity telemetry {
+    * device_id : UUID <<tag>>
+    module_id : UUID <<tag>>
+    --
+    * metric : VARCHAR(64) <<tag>>
+    * unit : VARCHAR(20) <<tag>>
+    * value : DOUBLE <<field>>
+    * recorded_at : TIMESTAMP <<time>>
+  }
+}
+
+note top of telemetry
+  InfluxDB measurement:
+
+  device_id, metric и unit - теги;
+  value - поле;
+  recorded_at - временная метка.
+
+  Связи с сущностями других сервисов - логические ссылки,
+  физические FK между базами сервисов не создаются.
+end note
+
+package "automation_db (Automation Service)" #F3E5F5 {
+  entity rules {
+    * id : UUID <<PK>>
+    --
+    * user_id : UUID <<FK>>
+    * house_id : UUID <<FK>>
+      module_id : UUID <<FK>>
+    --
+    * name : VARCHAR(150)
+      description : TEXT
+    * command : VARCHAR(50)
+    * conditions : JSONB
+    * enabled : BOOLEAN
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+
+  entity schedules {
+    * id : UUID <<PK>>
+    --
+    * device_id : UUID <<FK>>
+      rule_id : UUID <<FK>>
+    --
+    * cron : VARCHAR(100)
+      command : VARCHAR(50)
+    * next_run_at : TIMESTAMP
+    * last_run_at : TIMESTAMP
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+
+  entity rule_devices {
+    * rule_id : UUID <<PK, FK>>
+    * device_id : UUID <<PK, FK>>
+    --
+    * created_at : TIMESTAMP
+  }
+}
+
+package "notification_db (Notification Service)" #FCE4EC {
+  entity notification_templates {
+    * id : UUID <<PK>>
+    --
+    * code : VARCHAR(64) <<UQ>>
+    * channel : VARCHAR(20)
+    * subject : VARCHAR(255)
+    * body : TEXT
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+
+  entity notifications {
+    * id : UUID <<PK>>
+    --
+    * user_id : UUID <<FK>>
+    * template_id : UUID <<FK>>
+    --
+    * channel : VARCHAR(20)
+    * status : VARCHAR(20)
+    * payload : JSON
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+
+  entity outbox_events {
+    * id : UUID <<PK>>
+    --
+    * payload : JSON
+    * status : VARCHAR(20)
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+  }
+}
+
+users                  ||-up-o{            user_houses
+users                  ||-right-o{            devices
+houses                 ||--o{              user_houses
+
+credentials            ||--||            users
+credentials            ||--o{              sessions
+credentials            ||--o{              user_roles
+roles                  ||--o{              user_roles
+roles                  ||--o{              role_permissions
+permissions            ||--o{              role_permissions
+
+houses                 ||--o{              locations
+locations              ||--o{              devices
+
+device_types           ||--o{              devices
+devices                ||--o{              device_modules
+modules                ||--o{              device_modules
+devices                ||--o|              device_states
+
+users                  ||--o{              rules
+houses                 ||--o{              rules
+rules                  ||--o{              schedules
+rules                  ||--o{              rule_devices
+rules                  ||--o{              modules
+devices                ||--o{              rule_devices
+
+users                  ||--o{         notifications
+notification_templates ||-left-o{          notifications
+
+@enduml
