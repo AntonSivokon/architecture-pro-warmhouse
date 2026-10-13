@@ -1,0 +1,109 @@
+@startuml
+!include ../C4_Component.puml
+
+title Компонентная диаграмма IoT-платформы умного дома
+
+left to right direction
+
+Person(admin, "Administrator", "Администратор системы")
+Person(user, "User", "Пользователь системы")
+
+System_Boundary(c3, "IoT-платформа умного дома") {
+    Container(web, "Web", "Web Application", "Веб-интерфейс пользователя")
+    Container(mobile, "Mobile", "Mobile Application", "Мобильное приложение пользователя")
+    Container(api_gateway, "API Gateway", "API Gateway", "Маршрутизация запросов и проверка прав доступа")
+    Container(auth_service, "Authorization Service", "Java, Quarkus", "Сервис авторизации и аутентификации")
+
+    Container_Boundary(device_service, "Device Service") {
+        Component(device_controller, "Device Controller", "Java, Quarkus", "Управляет реестром устройств")
+        Component(device_state_handler, "Device State Handler", "Kafka", "Обрабатывает события состояния устройств")
+        Component(device_event_publisher, "Device Event Publisher", "Kafka", "Публикует события команд устройств")
+    }
+
+    Container(house_service, "House Service", "Java, Quarkus", "Управление домами и локациями")
+    Container(user_service, "User Service", "Java, Quarkus", "Управление пользователями")
+
+    Container_Boundary(telemetry_service, "Telemetry Service") {
+        Component(telemetry_controller, "Telemetry Controller", "Java", "Предоставляет данные телеметрии")
+        Component(telemetry_subscriber, "Telemetry Subscriber", "Mosquitto", "Принимает телеметрию от IoT-устройств")
+        Component(telemetry_processor, "Telemetry Processor", "Kafka Streams", "Обрабатывает и агрегирует телеметрию")
+        Component(telemetry_publisher, "Telemetry Event Publisher", "Kafka", "Публикует телеметрию и состояние устройств")
+    }
+
+    Container(notification_service, "Notification Service", "Java, Quarkus", "Отправка уведомлений")
+
+    Container_Boundary(automation_service, "Automation Service") {
+        Component(automation_controller, "Automation Controller", "Java, Quarkus", "Управляет расписаниями и правилами отправки команд")
+        Component(automation_event_handler, "Automation Event Handler", "Kafka, Java, Quarkus", "Обрабатывает телеметрию по правилам")
+        Component(automation_command_publisher, "Automation Command Publisher", "Kafka", "Публикует команды в брокер")
+    }
+
+    Container(device_command_service, "Device Command Service", "Java, Kafka Streams", "Отправка команд устройствам")
+    ContainerQueue(event_broker, "Event Broker", "Kafka", "Внутренний брокер событий")
+
+    ContainerDb(auth_db, "Authorization Database", "PostgreSQL", "Данные авторизации")
+    ContainerDb(device_db, "Device Database", "PostgreSQL", "Данные устройств")
+    ContainerDb(house_db, "House Database", "PostgreSQL", "Данные домов")
+    ContainerDb(user_db, "User Database", "PostgreSQL", "Данные пользователей")
+    ContainerDb(notification_db, "Notification Database", "PostgreSQL, Outbox", "Данные уведомлений")
+    ContainerDb(automation_db, "Automation Database", "PostgreSQL", "Данные автоматизации")
+    ContainerDb(telemetry_db, "Telemetry Database", "InfluxDB", "Данные телеметрии")
+}
+
+System_Ext(device, "Device", "Внешнее IoT-устройство (датчик/актуатор)")
+System_Ext(mqtt_broker, "MQTT Broker", "Брокер для общения с IoT-устройствами")
+System_Ext(email_system, "E-mail System", "Внешняя система email-рассылок")
+System_Ext(firebase, "Firebase", "Внешняя система push-уведомлений")
+System_Ext(sms_provider, "SMS Provider", "Внешний провайдер SMS")
+
+Rel(user, web, "Использует", "HTTPS (HTML/JS)")
+Rel(admin, web, "Добавляет типы устройств и просматривает статистику телеметрии", "HTTPS (HTML/JS)")
+Rel(user, mobile, "Использует", "HTTPS (JSON)")
+Rel(web, api_gateway, "Отправляет запросы", "HTTPS/REST (JSON)")
+Rel(mobile, api_gateway, "Отправляет запросы", "HTTPS/REST (JSON)")
+
+Rel_L(api_gateway, auth_service, "Проверяет права доступа", "REST/HTTP (JSON)")
+Rel_L(api_gateway, device_controller, "Управляет устройствами", "REST/HTTP (JSON)")
+Rel(api_gateway, house_service, "Управляет домами", "REST/HTTP (JSON)")
+Rel(api_gateway, user_service, "Управляет профилем", "REST/HTTP (JSON)")
+Rel(api_gateway, telemetry_processor, "Получает данные телеметрии", "REST/HTTP (JSON)")
+Rel(api_gateway, automation_controller, "Настраивает расписания и правила команд и уведомлений", "REST/HTTP (JSON)")
+Rel(api_gateway, notification_service, "Настраивает уведомления пользователя", "REST/HTTP (JSON)")
+Rel(api_gateway, telemetry_controller, "Получает статистику телеметрии", "REST/HTTP (JSON)")
+
+Rel_R(auth_service, auth_db, "Чтение/запись", "JDBC/TCP (SQL)")
+Rel(auth_service, email_system, "Подтверждение e-mail", "SMTP (MIME) / HTTPS (JSON)")
+Rel(auth_service, sms_provider, "Подтверждение номера телефона", "HTTPS/API (JSON/XML)")
+Rel(device_controller, device_db, "Чтение/запись", "JDBC/TCP (SQL)")
+Rel(device_controller, device_event_publisher, "Отправляет команду в брокер")
+Rel(house_service, house_db, "Чтение/запись", "JDBC/TCP (SQL)")
+Rel(user_service, user_db, "Чтение/запись", "JDBC/TCP (SQL)")
+Rel(notification_service, notification_db, "Чтение/запись", "JDBC/TCP (SQL)")
+Rel(automation_controller, automation_db, "Чтение/запись", "JDBC/TCP (SQL)")
+Rel(automation_event_handler, automation_db, "Чтение", "JDBC/TCP (SQL)")
+Rel(telemetry_processor, telemetry_db, "Чтение/запись", "JDBC/TCP (SQL)")
+Rel(telemetry_controller, telemetry_db, "Чтение", "JDBC/TCP (SQL)")
+
+Rel_U(notification_service, email_system, "Отправляет уведомления с помощью Outbox", "SMTP (MIME) / HTTPS (JSON)")
+Rel_U(notification_service, firebase, "Отправляет push с помощью Outbox", "HTTPS/FCM (JSON)")
+Rel_U(notification_service, sms_provider, "Отправляет SMS с помощью Outbox", "HTTPS/API (JSON/XML)")
+
+Rel(device, mqtt_broker, "Публикует телеметрию", "MQTT (JSON/Protobuf), topic: mqtt.telemetry")
+Rel(device_command_service, mqtt_broker, "Публикует команды", "MQTT (JSON/Protobuf), topic: mqtt.command")
+Rel(mqtt_broker, device, "Передает команды", "MQTT (JSON/Protobuf), topic: mqtt.command")
+Rel(mqtt_broker, telemetry_subscriber, "Передает телеметрию", "MQTT (JSON/Protobuf), topic: mqtt.telemetry")
+
+Rel(telemetry_subscriber, telemetry_processor, "Передает сообщения телеметрии")
+Rel(telemetry_processor, telemetry_publisher, "Передает агрегированные данные и состояние")
+Rel(telemetry_publisher, event_broker, "Публикует телеметрию и состояние", "Kafka/AMQP (Avro/JSON), topics: iot.telemetry, iot.device-state")
+Rel(device_state_handler, device_db, "Обновляет состояние", "JDBC/TCP (SQL)")
+Rel_L(device_event_publisher, event_broker, "Публикует события команды", "Kafka/AMQP (Avro/JSON), topic: iot.device-command")
+Rel(automation_event_handler, automation_command_publisher, "Отправляет команду по правилам")
+Rel(automation_command_publisher, event_broker, "Публикует команды", "Kafka/AMQP (Avro/JSON), topics: iot.device-command, iot.notification")
+
+Rel(event_broker, device_state_handler, "Передает события состояния", "Kafka/AMQP (Avro/JSON), topic: iot.device-state")
+Rel_L(event_broker, device_command_service, "Передает события команды", "Kafka/AMQP (Avro/JSON), topic: iot.device-command")
+Rel_L(event_broker, automation_event_handler, "Передает телеметрию", "Kafka/AMQP (Avro/JSON), topic: iot.telemetry")
+Rel(event_broker, notification_service, "Передает события для уведомлений", "Kafka/AMQP (Avro/JSON), topic: iot.notification")
+
+@enduml

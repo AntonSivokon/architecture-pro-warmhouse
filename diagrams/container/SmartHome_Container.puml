@@ -1,0 +1,86 @@
+@startuml
+!include <C4/C4_Container>
+
+title Диаграмма контейнеров для IoT платформы умного дома
+
+left to right direction
+
+Person(admin, "Administrator", "Администратор системы")
+Person(user, "User", "Пользователь системы")
+
+System_Boundary(c2, "IoT платформа умного дома") {
+    Container(web, "Web", "Web Application", "Веб-интерфейс пользователя")
+    Container(mobile, "Mobile", "Mobile Application", "Мобильное приложение пользователя")
+
+    Container(api_gateway, "API Gateway", "API Gateway", "Сервис маршрутизации запросов и аутентификации пользователей")
+
+    Container(auth_service, "Authorization Service", "Java, Quarkus", "Сервис авторизации и аутентификации")
+    Container(device_service, "Device Service", "Java, Quarkus", "Управление реестром устройств")
+    Container(house_service, "House Service", "Java, Quarkus", "Управление домами и локациями")
+    Container(user_service, "User Service", "Java, Quarkus", "Управление пользователями")
+    Container(telemetry_service, "Telemetry Service", "Java, Kafka Streams", "Обработка телеметрии")
+    Container(notification_service, "Notification Service", "Java, Quarkus", "Отправка уведомлений")
+    Container(automation_service, "Automation Service", "Java, Quarkus", "Сервис автоматизации и правил")
+    Container(device_command_service, "Device Command Service", "Java, Kafka Streams", "Сервис отправки команд")
+
+    ContainerQueue(event_broker, "Event Broker", "Kafka", "Внутренний брокер событий (Kafka)")
+
+    ContainerDb(auth_db, "Authorization Database", "PostgreSQL", "Данные авторизации")
+    ContainerDb(device_db, "Device Database", "PostgreSQL", "Данные устройств")
+    ContainerDb(house_db, "House Database", "PostgreSQL", "Данные домов")
+    ContainerDb(user_db, "User Database", "PostgreSQL", "Данные пользователей")
+    ContainerDb(notification_db, "Notification Database", "PostgreSQL, Outbox", "Данные уведомлений")
+    ContainerDb(automation_db, "Automation  Database", "PostgreSQL", "Данные автоматизации")
+    ContainerDb(telemetry_db, "Telemetry  Database", "InfluxDB", "Данные телеметрии")
+}
+
+System_Ext(device, "Device", "Внешнее IoT устройство (датчик/актуатор)")
+System_Ext(mqtt_broker, "MQTT Broker", "Брокер для общения с IoT устройствами")
+System_Ext(email_system, "E-mail System", "Внешняя система email-рассылок")
+System_Ext(firebase, "Firebase", "Внешняя система push-уведомлений")
+System_Ext(sms_provider, "SMS Provider", "Внешний провайдер SMS")
+
+Rel(user, web, "Использует", "HTTPS (HTML/JS)")
+Rel(admin, web, "Добавляет новые типы устройств / просматривает статистику телеметрии", "HTTPS (HTML/JS)")
+Rel(user, mobile, "Использует", "HTTPS (JSON)")
+
+Rel(web, api_gateway, "Отправляет запросы", "HTTPS/REST (JSON)")
+Rel(mobile, api_gateway, "Отправляет запросы", "HTTPS/REST (JSON)")
+
+Rel_L(api_gateway, auth_service, "Проверяет права доступа", "REST/HTTP (JSON")
+Rel_L(api_gateway, device_service, "Управляет устройствами", "REST/HTTP (JSON)")
+Rel(api_gateway, house_service, "Управляет домами", "REST/HTTP (JSON)")
+Rel(api_gateway, user_service, "Управляет профилем", "REST/HTTP (JSON)")
+Rel_L(api_gateway, telemetry_service, "Получает данные телеметрии", "REST/HTTP (JSON)")
+Rel(api_gateway, automation_service, "Настройка расписания команд и правил отправки команд и уведомлений", "REST/HTTP (JSON)")
+Rel(api_gateway, notification_service, "Настройка уведомлений пользователя", "REST/HTTP (JSON)")
+
+Rel(auth_service, auth_db, "Чтение/Запись", "JDBC/TCP (SQL)")
+Rel(auth_service, email_system, "Подтверждение e-mail", "SMTP (MIME) / HTTPS (JSON)")
+Rel(auth_service, sms_provider, "Подтверждение номера телефона", "HTTPS/API (JSON/XML)")
+Rel(device_service, device_db, "Чтение/Запись", "JDBC/TCP (SQL)")
+Rel(house_service, house_db, "Чтение/Запись", "JDBC/TCP (SQL)")
+Rel(user_service, user_db, "Чтение/Запись", "JDBC/TCP (SQL)")
+Rel(notification_service, notification_db, "Чтение/Запись", "JDBC/TCP (SQL)")
+Rel(automation_service, automation_db, "Чтение/Запись", "JDBC/TCP (SQL)")
+Rel(telemetry_service, telemetry_db, "Чтение/Запись", "JDBC/TCP (SQL)")
+
+Rel_U(notification_service, email_system, "Отправляет уведомления с помощью Outbox", "SMTP (MIME) / HTTPS (JSON)")
+Rel_U(notification_service, firebase, "Отправляет push с помощью Outbox", "HTTPS/FCM (JSON)")
+Rel_U(notification_service, sms_provider, "Отправляет SMS с помощью Outbox", "HTTPS/API (JSON/XML)")
+
+Rel(device, mqtt_broker, "Публикует телеметрию", "MQTT (JSON/Protobuf)", "topic: mqtt.telemetry")
+Rel(device_command_service, mqtt_broker, "Публикует команды", "MQTT (JSON/Protobuf)", "topic: mqtt.command")
+Rel(mqtt_broker, device, "Передает команды", "MQTT (JSON/Protobuf)", "topic: mqtt.command")
+Rel_U(mqtt_broker, telemetry_service, "Публикует телеметрию", "MQTT (JSON/Protobuf)", "topic: mqtt.telemetry")
+
+Rel_R(telemetry_service, event_broker, "Агрегирует и публикует телеметрию/состояние", "Kafka/AMQP (Avro/JSON)", "topic: iot.telemetry\n topic: iot.device-state")
+Rel_L(event_broker, device_service, "События состояния", "Kafka/AMQP (Avro/JSON)", "topic: iot.device-state")
+Rel_L(event_broker, device_command_service, "События команды", "Kafka/AMQP (Avro/JSON)", "topic: iot.device-command")
+
+Rel(device_service, event_broker, "События команды", "Kafka/AMQP (Avro/JSON)", "topic: iot.device-command")
+Rel_L(event_broker, automation_service, "Потребляет телеметрию", "Kafka/AMQP (Avro/JSON)", "topic: iot.telemetry")
+Rel(automation_service, event_broker, "Публикует команды", "Kafka/AMQP (Avro/JSON)", "topic: iot.device-command\n topic: iot.notification")
+Rel(event_broker, notification_service, "События для уведомлений", "Kafka/AMQP (Avro/JSON)", "topic: iot.notification")
+
+@enduml

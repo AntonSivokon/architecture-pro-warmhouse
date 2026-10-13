@@ -1,0 +1,149 @@
+version: '3.8'
+name: mvp
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mvp-smarthome-postgres
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./smart_home/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d postgres"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - smarthome-network
+
+  temperature-api:
+    build:
+      context: ./temperature_api
+      dockerfile: Dockerfile
+    container_name: mvp-temperature-api
+    environment:
+      PORT: "8081"
+    restart: unless-stopped
+    networks:
+      - smarthome-network
+
+  app:
+    build:
+      context: ./smart_home
+      dockerfile: Dockerfile
+    container_name: mvp-smarthome-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temperature-api:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/smarthome
+      TEMPERATURE_API_URL: http://temperature-api:8081
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    networks:
+      - smarthome-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.8.0
+    container_name: mvp-kafka
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - smarthome-network
+
+  kafka-topic-init:
+    image: confluentinc/cp-kafka:7.8.0
+    container_name: mvp-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash"]
+    command:
+      - -ec
+      - |
+        for topic in legacy.telemetry iot.telemetry iot.device-state iot.device-command; do
+          kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic "$$topic" --partitions 1 --replication-factor 1
+        done
+    restart: "no"
+    networks:
+      - smarthome-network
+
+  device-service:
+    build:
+      context: ./device_service
+      dockerfile: Dockerfile
+    container_name: mvp-device-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-topic-init:
+        condition: service_completed_successfully
+      app:
+        condition: service_started
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      LEGACY_API_URL: http://app:8080
+    ports:
+      - "8082:8000"
+    restart: unless-stopped
+    networks:
+      - smarthome-network
+
+  telemetry-service:
+    build:
+      context: ./telemetry_service
+      dockerfile: Dockerfile
+    container_name: mvp-telemetry-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-topic-init:
+        condition: service_completed_successfully
+      app:
+        condition: service_started
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      LEGACY_API_URL: http://app:8080
+      LEGACY_POLL_INTERVAL_MS: "5000"
+    ports:
+      - "8083:8081"
+    restart: unless-stopped
+    networks:
+      - smarthome-network
+
+volumes:
+  postgres_data:
+  kafka_data:
+
+networks:
+  smarthome-network:
+    driver: bridge
